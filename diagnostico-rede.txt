@@ -1,0 +1,9 @@
+Runner: {  "ip": "172.185.47.213",  "city": "San Jose",  "region": "California",  "country": "US",  "loc": "37.3394,-121.8950",  "org": "AS8075 Microsoft Corporation",  "postal": "95110",  "timezone": "America/Los_Angeles",  "readme": "https://ipinfo.io/missingauth"}
+https://portal.tce.rs.gov.br/aplicprod/f?p=50500:3 -> falhou (000 em 20.002182s)
+https://dados.tce.rs.gov.br/dados/licitacon/licitacao/ano/2026.csv.zip -> falhou (000 em 20.001827s)
+https://dados.tce.rs.gov.br/api/3/action/package_list -> falhou (000 em 20.002634s)
+https://tcers.tc.br/ -> 403 em 0.222280s
+191.253.200.245:443 sem conexão
+187.44.87.185:443 sem conexão
+187.44.87.182:443 sem conexão
+191.253.200.252:443 sem conexão
