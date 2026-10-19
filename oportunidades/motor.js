@@ -26,8 +26,8 @@
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return await r.json();
       } catch (e) {
-        if (t >= 5) throw e;
-        await esperar(3000 * t);
+        if (t >= 6) throw e;
+        await esperar(4000 * t);
       }
     }
   }
@@ -95,6 +95,14 @@
     // Três palavras por vez para não sobrecarregar o PNCP
     const fila = [...palavras];
     await Promise.all([1, 2, 3].map(async () => { while (fila.length) await buscarPalavra(fila.shift()); }));
+
+    // Segunda chance, uma palavra por vez, para as que falharam
+    const repetir = falhas.splice(0);
+    for (const palavra of repetir) {
+      await esperar(10000);
+      feitas--;
+      await buscarPalavra(palavra);
+    }
 
     const itens = [...achados.values()];
     aplicarExclusoes(itens, config);
