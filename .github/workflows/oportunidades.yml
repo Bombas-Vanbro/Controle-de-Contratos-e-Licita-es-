@@ -9,7 +9,7 @@ on:
       - 'oportunidades/config.json'
       - 'oportunidades/motor.js'
       - 'oportunidades/buscar.js'
-      - 'oportunidades/licitacon.js'
+      - 'oportunidades/licitacon-bruto.json'
 
 permissions:
   contents: write

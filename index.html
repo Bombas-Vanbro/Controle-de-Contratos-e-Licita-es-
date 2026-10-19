@@ -616,10 +616,13 @@ function renderizarOportInfo(){
   else if(opMeta) txt=`Rotina automática: última busca em ${new Date(opMeta.gerado_em).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})} `
     +'· próxima de seg. a sex. às 7h';
   else txt='Ainda não há busca automática salva. Clique em Buscar agora.';
-  const falhas=(opMeta&&opMeta.falhas)||[];
-  $('opInfo').innerHTML=esc(txt)+' · Fontes: PNCP (inclui Compras.gov.br, BLL, Licitações-e, BNC e demais plataformas) e LicitaCon (TCE-RS)'
-    +(opBuscaAoVivo?'<div class="mt-1">O LicitaCon não permite consulta direta pelo navegador: os editais dele vêm da última rotina automática.</div>':'')
-    +(falhas.length?`<div class="text-danger mt-1"><i class="bi bi-exclamation-triangle me-1"></i>Não foi possível consultar: ${falhas.map(esc).join(', ')}</div>`:'');
+  const falhas=(opMeta&&opMeta.falhas)||[], erros=(opMeta&&opMeta.erros)||{};
+  const lcEm=opMeta&&opMeta.licitacon_coletado_em;
+  $('opInfo').innerHTML=esc(txt)+' · Fontes: PNCP (inclui Compras.gov.br, BLL, Licitações-e, BNC e demais plataformas) e LicitaCon (TCE-RS'
+    +(lcEm?', coletado em '+new Date(lcEm).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'')+')'
+    +(opBuscaAoVivo?'<div class="mt-1">O LicitaCon não permite consulta direta pelo navegador: os editais dele vêm da última coleta.</div>':'')
+    +(falhas.length?`<div class="text-danger mt-1"><i class="bi bi-exclamation-triangle me-1"></i>Não foi possível consultar: ${
+      falhas.map(f=>esc(f)+(erros[f]?` <span class="meta">(${esc(erros[f])})</span>`:'')).join(', ')}</div>`:'');
 }
 
 const opRelevantes = () => oport.filter(r=>r.no_objeto&&!r.excluida&&opDias(r)!==-1);

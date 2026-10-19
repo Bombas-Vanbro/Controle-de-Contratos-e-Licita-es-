@@ -4,7 +4,6 @@
 const fs = require('fs');
 const path = require('path');
 const motor = require('./motor.js');
-const licitacon = require('./licitacon.js');
 
 const pasta = __dirname;
 const lerJson = (arq, padrao) => {
@@ -38,18 +37,24 @@ const lerJson = (arq, padrao) => {
     console.log(`Recuperados ${recuperados.length} editais da busca anterior para: ${falhas.join(', ')}`);
   }
 
-  // LicitaCon (TCE-RS): se o portal falhar, reaproveita os editais da busca anterior
+  // LicitaCon (TCE-RS): o portal bloqueia acessos de fora do Brasil, então a coleta é feita
+  // por um PC da empresa (coletar-licitacon.ps1), que envia licitacon-bruto.json para cá
   let doLicitacon = [];
+  let licitaconColetadoEm = null;
   if (config.licitacon !== false) {
-    try {
-      const brutos = await licitacon.buscar();
-      doLicitacon = motor.filtrarPorPalavras(brutos, config);
-      console.log(`[LicitaCon] ${brutos.length} editais abertos no RS, ${doLicitacon.length} com as palavras-chave`);
-    } catch (e) {
-      console.error('[LicitaCon] ' + e.message);
+    const bruto = lerJson('licitacon-bruto.json', null);
+    if (bruto && Array.isArray(bruto.itens)) {
+      licitaconColetadoEm = bruto.coletado_em;
+      doLicitacon = motor.filtrarPorPalavras(bruto.itens, config);
+      const dias = (Date.now() - new Date(bruto.coletado_em)) / 864e5;
+      console.log(`[LicitaCon] coleta de ${bruto.coletado_em}: ${bruto.itens.length} editais, ${doLicitacon.length} com as palavras-chave`);
+      if (dias > 2) {
+        falhas.push('LicitaCon (TCE-RS)');
+        erros['LicitaCon (TCE-RS)'] = `última coleta em ${new Date(bruto.coletado_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}: o PC da coleta ficou desligado?`;
+      }
+    } else {
       falhas.push('LicitaCon (TCE-RS)');
-      erros['LicitaCon (TCE-RS)'] = e.message + (e.cause ? ' (' + (e.cause.code || e.cause.message) + ')' : '');
-      doLicitacon = (anterior.itens || []).filter(r => r.fonte === 'LicitaCon');
+      erros['LicitaCon (TCE-RS)'] = 'nenhuma coleta enviada pelo PC ainda';
     }
   }
   const itens = motor.mesclar(pncp.itens, doLicitacon);
@@ -64,7 +69,7 @@ const lerJson = (arq, padrao) => {
 
   // Uma linha por edital, em ordem fixa: as mudanças diárias ficam pequenas no Git
   itens.sort((a, b) => a.id.localeCompare(b.id));
-  const meta = { gerado_em: new Date().toISOString(), palavras: config.palavras_chave, falhas, erros, primeira };
+  const meta = { gerado_em: new Date().toISOString(), palavras: config.palavras_chave, falhas, erros, licitacon_coletado_em: licitaconColetadoEm, primeira };
   const linhas = itens.map(r => JSON.stringify(r));
   fs.writeFileSync(path.join(pasta, 'resultado.json'),
     `{"meta":${JSON.stringify(meta)},\n"itens":[\n${linhas.join(',\n')}\n]}\n`);
