@@ -36,6 +36,7 @@
     const objeto = [it.description, it.informacao_complementar].filter(Boolean).join(' | ');
     return {
       id: it.numero_controle_pncp,
+      fonte: 'PNCP',
       orgao: it.orgao_nome,
       municipio: it.municipio_nome,
       uf: it.uf,
@@ -48,7 +49,7 @@
       publicacao: (it.data_publicacao_pncp || '').slice(0, 19),
       plataforma: it.usuario_nome,
       ano: it.ano,
-      link_pncp: 'https://pncp.gov.br/app/editais' + String(it.item_url || '').replace(/^\/compras/, ''),
+      link: 'https://pncp.gov.br/app/editais' + String(it.item_url || '').replace(/^\/compras/, ''),
       link_origem: it.link_sistema_origem || '',
       palavras: [],
       no_objeto: false,
@@ -128,7 +129,45 @@
     }
   }
 
-  const api = { buscar, aplicarExclusoes, normalizar };
+  /* Marca as palavras-chave citadas no objeto de editais vindos de outras fontes
+     (ex.: LicitaCon) e descarta os que não citam nenhuma. */
+  function filtrarPorPalavras(itens, config) {
+    const palavras = (config.palavras_chave || []).map(p => String(p).trim()).filter(Boolean);
+    const ufs = (config.ufs || []).map(u => String(u).toUpperCase().trim()).filter(Boolean);
+    const res = palavras.map(p => ({ p, re: padrao(p) }));
+    const saida = [];
+    for (const r of itens) {
+      if (ufs.length && !ufs.includes(r.uf)) continue;
+      const norm = normalizar(r.objeto);
+      r.palavras = res.filter(x => x.re.test(norm)).map(x => x.p);
+      if (!r.palavras.length) continue;
+      r.no_objeto = true;
+      saida.push(r);
+    }
+    aplicarExclusoes(saida, config);
+    return saida;
+  }
+
+  /* Junta editais do PNCP com os de outra fonte. Um edital que já está no PNCP
+     (mesmo município, número e ano) não se repete: o PNCP ganha o link da outra fonte. */
+  function mesclar(pncp, outros) {
+    const numAno = r => {
+      const m = /(\d+)\s*\/\s*(\d{4})/.exec(r.numero ? `${r.numero}/${r.ano}` : r.titulo || '');
+      return m ? `${Number(m[1])}/${m[2]}` : '';
+    };
+    const chave = r => r.municipio && numAno(r) ? `${r.uf}|${normalizar(r.municipio)}|${numAno(r)}` : '';
+    const porChave = new Map();
+    for (const r of pncp) { const k = chave(r); if (k) porChave.set(k, r); }
+    const extras = [];
+    for (const r of outros) {
+      const igual = porChave.get(chave(r));
+      if (igual) igual.link_licitacon = r.link;
+      else extras.push(r);
+    }
+    return [...pncp, ...extras];
+  }
+
+  const api = { buscar, aplicarExclusoes, filtrarPorPalavras, mesclar, normalizar };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else raiz.MotorPNCP = api;
 })(typeof window !== 'undefined' ? window : globalThis);

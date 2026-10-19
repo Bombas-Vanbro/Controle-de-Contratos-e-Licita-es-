@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const motor = require('./motor.js');
+const licitacon = require('./licitacon.js');
 
 const pasta = __dirname;
 const lerJson = (arq, padrao) => {
@@ -16,15 +17,32 @@ const lerJson = (arq, padrao) => {
   const primeira = Object.keys(historico).length === 0;
   const hoje = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
 
-  const { itens, falhas } = await motor.buscar(config, {
-    aoProgredir: (n, total, palavra) => console.log(`[${n}/${total}] ${palavra}`)
+  const anterior = lerJson('resultado.json', { itens: [] });
+  const pncp = await motor.buscar(config, {
+    aoProgredir: (n, total, palavra) => console.log(`[PNCP ${n}/${total}] ${palavra}`)
   });
+  const falhas = pncp.falhas;
 
   // Se todas as palavras falharam, mantém o resultado anterior em vez de gravar uma lista vazia
   if (falhas.length && falhas.length === (config.palavras_chave || []).length) {
     console.error('Nenhuma palavra-chave pôde ser consultada: ' + falhas.join(', '));
     process.exit(1);
   }
+
+  // LicitaCon (TCE-RS): se o portal falhar, reaproveita os editais da busca anterior
+  let doLicitacon = [];
+  if (config.licitacon !== false) {
+    try {
+      const brutos = await licitacon.buscar();
+      doLicitacon = motor.filtrarPorPalavras(brutos, config);
+      console.log(`[LicitaCon] ${brutos.length} editais abertos no RS, ${doLicitacon.length} com as palavras-chave`);
+    } catch (e) {
+      console.error('[LicitaCon] ' + e.message);
+      falhas.push('LicitaCon (TCE-RS)');
+      doLicitacon = (anterior.itens || []).filter(r => r.fonte === 'LicitaCon');
+    }
+  }
+  const itens = motor.mesclar(pncp.itens, doLicitacon);
 
   for (const r of itens) {
     if (!historico[r.id]) historico[r.id] = hoje;
