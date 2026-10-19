@@ -66,13 +66,16 @@
     const maxRes = Number(config.max_resultados_por_palavra) || 3000;
     const achados = new Map();
     const falhas = [];
+    const erros = {};          // palavra -> última mensagem de erro
+    const proxima = {};        // palavra -> página em que parou (a repetição continua dali)
     let feitas = 0;
 
     async function buscarPalavra(palavra) {
       const termo = /\s/.test(palavra) ? `"${palavra}"` : palavra;
       const re = padrao(palavra);
       try {
-        for (let pag = 1; pag <= Math.ceil(maxRes / POR_PAGINA); pag++) {
+        for (let pag = proxima[palavra] || 1; pag <= Math.ceil(maxRes / POR_PAGINA); pag++) {
+          proxima[palavra] = pag;
           const url = `${API}?q=${encodeURIComponent(termo)}&tipos_documento=edital&ordenacao=-data` +
                       `&pagina=${pag}&tam_pagina=${POR_PAGINA}&status=recebendo_proposta`;
           const itens = (await consultar(url)).items || [];
@@ -88,6 +91,7 @@
         }
       } catch (e) {
         falhas.push(palavra);
+        erros[palavra] = `página ${proxima[palavra]}: ${e.message}${e.cause ? ' (' + (e.cause.code || e.cause.message) + ')' : ''}`;
       }
       feitas++;
       if (opcoes.aoProgredir) opcoes.aoProgredir(feitas, palavras.length, palavra);
@@ -107,7 +111,8 @@
 
     const itens = [...achados.values()];
     aplicarExclusoes(itens, config);
-    return { itens, falhas };
+    for (const p of Object.keys(erros)) if (!falhas.includes(p)) delete erros[p];
+    return { itens, falhas, erros };
   }
 
   /* Se o objeto cita uma palavra protegida (ex.: bomba), o edital nunca é excluído.

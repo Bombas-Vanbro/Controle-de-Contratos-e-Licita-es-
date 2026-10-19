@@ -22,11 +22,20 @@ const lerJson = (arq, padrao) => {
     aoProgredir: (n, total, palavra) => console.log(`[PNCP ${n}/${total}] ${palavra}`)
   });
   const falhas = pncp.falhas;
+  const erros = { ...pncp.erros };
 
   // Se todas as palavras falharam, mantém o resultado anterior em vez de gravar uma lista vazia
   if (falhas.length && falhas.length === (config.palavras_chave || []).length) {
     console.error('Nenhuma palavra-chave pôde ser consultada: ' + falhas.join(', '));
     process.exit(1);
+  }
+  // Palavra que falhou: completa com os editais dela da busca anterior
+  if (falhas.length) {
+    const ids = new Set(pncp.itens.map(r => r.id));
+    const recuperados = (anterior.itens || []).filter(r =>
+      (r.fonte || 'PNCP') === 'PNCP' && !ids.has(r.id) && r.palavras.some(p => falhas.includes(p)));
+    pncp.itens.push(...recuperados);
+    console.log(`Recuperados ${recuperados.length} editais da busca anterior para: ${falhas.join(', ')}`);
   }
 
   // LicitaCon (TCE-RS): se o portal falhar, reaproveita os editais da busca anterior
@@ -39,6 +48,7 @@ const lerJson = (arq, padrao) => {
     } catch (e) {
       console.error('[LicitaCon] ' + e.message);
       falhas.push('LicitaCon (TCE-RS)');
+      erros['LicitaCon (TCE-RS)'] = e.message + (e.cause ? ' (' + (e.cause.code || e.cause.message) + ')' : '');
       doLicitacon = (anterior.itens || []).filter(r => r.fonte === 'LicitaCon');
     }
   }
@@ -54,7 +64,7 @@ const lerJson = (arq, padrao) => {
 
   // Uma linha por edital, em ordem fixa: as mudanças diárias ficam pequenas no Git
   itens.sort((a, b) => a.id.localeCompare(b.id));
-  const meta = { gerado_em: new Date().toISOString(), palavras: config.palavras_chave, falhas, primeira };
+  const meta = { gerado_em: new Date().toISOString(), palavras: config.palavras_chave, falhas, erros, primeira };
   const linhas = itens.map(r => JSON.stringify(r));
   fs.writeFileSync(path.join(pasta, 'resultado.json'),
     `{"meta":${JSON.stringify(meta)},\n"itens":[\n${linhas.join(',\n')}\n]}\n`);
