@@ -1,0 +1,39 @@
+name: Diagnóstico de rede (temporário)
+
+on:
+  push:
+    paths:
+      - '.github/workflows/diagnostico-rede.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  testar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Testar acesso aos servidores do TCE-RS
+        run: |
+          {
+            echo "Runner: $(curl -s -m 10 https://ipinfo.io/json | tr -d '\n')"
+            for u in https://portal.tce.rs.gov.br/aplicprod/f?p=50500:3 \
+                     https://dados.tce.rs.gov.br/dados/licitacon/licitacao/ano/2026.csv.zip \
+                     https://dados.tce.rs.gov.br/api/3/action/package_list \
+                     https://tcers.tc.br/ ; do
+              r=$(curl -s -o /dev/null -I -m 30 --connect-timeout 20 -w '%{http_code} em %{time_total}s' "$u" 2>&1) || r="falhou ($r)"
+              echo "$u -> $r"
+            done
+            for ip in 191.253.200.245 187.44.87.185 187.44.87.182 191.253.200.252; do
+              if timeout 20 bash -c "</dev/tcp/$ip/443" 2>/dev/null; then echo "$ip:443 conecta"; else echo "$ip:443 sem conexão"; fi
+            done
+          } | tee diagnostico-rede.txt
+      - name: Salvar resultado
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add diagnostico-rede.txt
+          git commit -m "Diagnóstico de rede do TCE-RS"
+          git pull --rebase
+          git push
