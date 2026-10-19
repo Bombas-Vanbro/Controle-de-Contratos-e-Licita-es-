@@ -1,0 +1,39 @@
+name: Busca de oportunidades (PNCP)
+
+on:
+  schedule:
+    - cron: '0 10 * * 1-5'   # segunda a sexta, 07:00 de Brasília
+  workflow_dispatch:          # botão "Run workflow" na aba Actions do GitHub
+  push:
+    paths:
+      - 'oportunidades/config.json'
+      - 'oportunidades/motor.js'
+      - 'oportunidades/buscar.js'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: oportunidades
+  cancel-in-progress: false
+
+jobs:
+  buscar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Buscar licitações no PNCP
+        run: node oportunidades/buscar.js
+      - name: Salvar resultado
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add oportunidades/resultado.json oportunidades/historico.json
+          if git diff --cached --quiet; then echo "Sem mudanças"; exit 0; fi
+          git commit -m "Atualiza oportunidades do PNCP"
+          git pull --rebase
+          git push

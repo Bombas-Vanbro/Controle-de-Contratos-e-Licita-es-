@@ -72,6 +72,14 @@
   .form-label{font-size:.8rem;font-weight:600;color:var(--navy);margin-bottom:.2rem}
   .previa{background:var(--navy-soft);border-radius:10px;padding:.75rem 1rem}
   .toast-container{z-index:2000}
+
+  /* Aba Oportunidades (PNCP) */
+  table.tb.op{min-width:900px}
+  .op-obj{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer;max-width:620px}
+  .op-obj.aberto{display:block}
+  tr.op-nova td:first-child{box-shadow:inset 4px 0 0 var(--ok)}
+  .p-nova{background:var(--ok);color:#fff}
+  .op-check{display:flex;align-items:center;gap:.35rem;color:var(--muted);font-size:.8rem;white-space:nowrap;margin:0}
   :focus-visible{outline:2px solid var(--navy-2);outline-offset:2px}
 
   @media print{
@@ -123,10 +131,12 @@
       <ul class="nav nav-tabs">
         <li class="nav-item"><button class="nav-link active" data-aba="contratos" onclick="trocarAba('contratos')">Contratos ativos <span class="pill p-neutro ms-1" id="cntContratos">0</span></button></li>
         <li class="nav-item"><button class="nav-link" data-aba="historico" onclick="trocarAba('historico')">Histórico <span class="pill p-cinza ms-1" id="cntHistorico">0</span></button></li>
+        <li class="nav-item"><button class="nav-link" data-aba="oportunidades" onclick="trocarAba('oportunidades')"><i class="bi bi-search me-1"></i>Oportunidades <span class="pill p-neutro ms-1" id="cntOport">–</span><span class="pill p-nova ms-1 d-none" id="cntOportNovas"></span></button></li>
       </ul>
       <button class="btn btn-navy btn-sm mb-2 no-print" onclick="abrirForm()"><i class="bi bi-plus-lg me-1"></i>Novo contrato</button>
     </div>
 
+    <div id="painelContratos">
     <div class="p-3 border-bottom no-print">
       <div class="row g-2">
         <div class="col-12 col-md-5"><input id="fBusca" class="form-control form-control-sm" placeholder="Buscar por órgão, edital, contrato ou pedido"></div>
@@ -146,6 +156,41 @@
         </tr></thead>
         <tbody id="tbody"></tbody>
       </table>
+    </div>
+    </div>
+
+    <!-- Oportunidades: licitações abertas no PNCP pelas palavras-chave de oportunidades/config.json -->
+    <div id="painelOport" class="d-none">
+      <div class="p-3 border-bottom no-print">
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+          <div class="meta flex-grow-1" id="opInfo">Carregando…</div>
+          <a class="btn btn-sm btn-light" target="_blank" rel="noopener" title="Editar palavras-chave e termos de exclusão no GitHub"
+             href="https://github.com/Jonatha-Vanbro/Controle-de-Contratos-e-Licita-es-/edit/main/oportunidades/config.json"><i class="bi bi-sliders me-1"></i>Palavras-chave</a>
+          <button class="btn btn-sm btn-navy" id="opBuscar" onclick="buscarAgora()"><i class="bi bi-search me-1"></i>Buscar agora</button>
+        </div>
+        <div class="progress d-none mb-2" id="opProg" style="height:6px"><div class="progress-bar" id="opProgBar" style="width:0%"></div></div>
+        <div class="row g-2 align-items-center">
+          <div class="col-12 col-md-4"><input id="opBusca" class="form-control form-control-sm" placeholder="Filtrar por órgão, cidade ou objeto"></div>
+          <div class="col-4 col-md-2"><select id="opUf" class="form-select form-select-sm"><option value="">Todos os estados</option></select></div>
+          <div class="col-4 col-md-2"><select id="opPalavra" class="form-select form-select-sm"><option value="">Todas as palavras</option></select></div>
+          <div class="col-4 col-md-2"><select id="opOrdem" class="form-select form-select-sm">
+            <option value="prazo">Prazo mais próximo</option><option value="pub">Mais recentes</option><option value="valor">Maior valor</option></select></div>
+          <div class="col-12 col-md-2 d-flex flex-wrap gap-3">
+            <label class="op-check"><input type="checkbox" id="opNovas"> Só novas</label>
+          </div>
+          <div class="col-12 d-flex flex-wrap gap-3">
+            <label class="op-check" title="A palavra-chave aparece só na lista de itens do edital, não no objeto"><input type="checkbox" id="opItens"> Incluir citadas só nos itens</label>
+            <label class="op-check" title="Editais escondidos pelos termos de exclusão"><input type="checkbox" id="opExcl"> Mostrar excluídas</label>
+          </div>
+        </div>
+      </div>
+      <div class="tabela-wrap">
+        <table class="table tb op mb-0">
+          <thead><tr><th>Órgão / Objeto</th><th>Plataforma</th><th class="num">Valor estimado</th><th>Propostas até</th><th class="num">Dias</th><th class="no-print"></th></tr></thead>
+          <tbody id="opBody"></tbody>
+        </table>
+      </div>
+      <div class="text-center p-2 d-none no-print" id="opMaisWrap"><button class="btn btn-sm btn-light" onclick="opLimite+=200;renderOport()">Mostrar mais</button></div>
     </div>
   </div>
 </main>
@@ -206,6 +251,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="oportunidades/motor.js"></script>
 <script>
 /* ============ CONFIGURAÇÃO ============ */
 // Cole aqui a URL /exec do Web App do Apps Script. Vazio = modo demonstração.
@@ -364,6 +410,7 @@ function renderizar(){
 
   document.getElementById('cntContratos').textContent=contratos.length;
   document.getElementById('cntHistorico').textContent=historico.length;
+  if(abaAtual==='oportunidades'){ renderOport(); return; }
 
   // Tabela
   const lista=listaFiltrada(), tb=document.getElementById('tbody');
@@ -404,6 +451,8 @@ function renderizar(){
 function trocarAba(a){
   abaAtual=a;
   document.querySelectorAll('.nav-tabs .nav-link').forEach(b=>b.classList.toggle('active',b.dataset.aba===a));
+  $('painelContratos').classList.toggle('d-none',a==='oportunidades');
+  $('painelOport').classList.toggle('d-none',a!=='oportunidades');
   renderizar();
 }
 function alternarStatus(s){ filtroStatus=filtroStatus===s?'':s; document.getElementById('fStatus').value=filtroStatus; renderizar(); }
@@ -517,9 +566,156 @@ function avisar(msg,erro=false){
   $('toastMsg').textContent=msg; toast.show();
 }
 
+/* ============ OPORTUNIDADES (PNCP) ============ */
+// A rotina diária do GitHub Actions grava oportunidades/resultado.json;
+// "Buscar agora" consulta o PNCP direto do navegador com a mesma configuração.
+let oport=[], opMeta=null, opBuscaAoVivo=null, opLimite=200;
+
+function dataSP(iso){ return new Date(iso).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'}); }
+function opDias(r){
+  const f=r.encerramento?new Date(r.encerramento):null;
+  if(!f||isNaN(f)) return null;
+  if(f<new Date()) return -1;
+  const d0=new Date(f); d0.setHours(0,0,0,0);
+  return Math.round((d0-hoje())/86400000);
+}
+
+async function carregarOport(){
+  try{
+    const r=await fetch('oportunidades/resultado.json?v='+Date.now());
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const j=await r.json();
+    opMeta=j.meta;
+    const diaRotina=dataSP(opMeta.gerado_em);
+    oport=j.itens.map(x=>({...x,nova:!opMeta.primeira&&x.visto_em===diaRotina}));
+  }catch(e){
+    opMeta=null; oport=[];
+  }
+  montarFiltrosOport(); renderizarOportInfo(); atualizarContadorOport();
+  if(abaAtual==='oportunidades') renderOport();
+}
+
+function montarFiltrosOport(){
+  const ufs=[...new Set(oport.map(r=>r.uf).filter(Boolean))].sort();
+  const sUf=$('opUf'), vUf=sUf.value;
+  sUf.innerHTML='<option value="">Todos os estados</option>'+ufs.map(u=>`<option>${u}</option>`).join('');
+  sUf.value=ufs.includes(vUf)?vUf:'';
+  const pal=(opMeta&&opMeta.palavras)||[...new Set(oport.flatMap(r=>r.palavras))];
+  const sP=$('opPalavra'), vP=sP.value;
+  sP.innerHTML='<option value="">Todas as palavras</option>'+pal.map(p=>`<option>${esc(p)}</option>`).join('');
+  sP.value=pal.includes(vP)?vP:'';
+}
+
+function renderizarOportInfo(){
+  let txt;
+  if(opBuscaAoVivo) txt=`Busca feita agora às ${opBuscaAoVivo.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}. `
+    +'A base salva é atualizada pela rotina automática (seg. a sex., 7h).';
+  else if(opMeta) txt=`Rotina automática: última busca em ${new Date(opMeta.gerado_em).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})} `
+    +'· próxima de seg. a sex. às 7h';
+  else txt='Ainda não há busca automática salva. Clique em Buscar agora.';
+  const falhas=(opMeta&&opMeta.falhas)||[];
+  $('opInfo').innerHTML=esc(txt)+' · Fonte: PNCP (inclui Compras.gov.br, BLL, Licitações-e, BNC e demais plataformas)'
+    +(falhas.length?`<div class="text-danger mt-1"><i class="bi bi-exclamation-triangle me-1"></i>Não foi possível consultar: ${falhas.map(esc).join(', ')}</div>`:'');
+}
+
+const opRelevantes = () => oport.filter(r=>r.no_objeto&&!r.excluida&&opDias(r)!==-1);
+function atualizarContadorOport(){
+  const rel=opRelevantes(), novas=rel.filter(r=>r.nova).length;
+  $('cntOport').textContent=opMeta||opBuscaAoVivo?rel.length:'–';
+  $('cntOportNovas').textContent=novas+' nova'+(novas===1?'':'s');
+  $('cntOportNovas').classList.toggle('d-none',!novas);
+}
+
+// Edital já cadastrado no controle (mesmo link do PNCP)
+function opRegistrado(r){ return [...contratos,...historico].find(c=>c.link&&c.link===r.link_pncp); }
+
+function renderOport(){
+  const q=MotorPNCP.normalizar($('opBusca').value).split(/\s+/).filter(Boolean);
+  const uf=$('opUf').value, pal=$('opPalavra').value, ord=$('opOrdem').value;
+  const excl=$('opExcl').checked, itens=$('opItens').checked, novas=$('opNovas').checked;
+  let l=oport.filter(r=>{
+    if(opDias(r)===-1) return false;
+    if(excl ? !r.excluida : r.excluida) return false;
+    if(!excl && !itens && !r.no_objeto) return false;
+    if(novas && !r.nova) return false;
+    if(uf && r.uf!==uf) return false;
+    if(pal && !r.palavras.includes(pal)) return false;
+    if(q.length){ const t=MotorPNCP.normalizar([r.orgao,r.municipio,r.uf,r.objeto,r.titulo,r.plataforma].join(' ')); if(!q.every(x=>t.includes(x))) return false; }
+    return true;
+  });
+  const fim=r=>r.encerramento?new Date(r.encerramento).getTime():Infinity;
+  if(ord==='prazo') l.sort((a,b)=>fim(a)-fim(b));
+  if(ord==='pub') l.sort((a,b)=>String(b.publicacao).localeCompare(String(a.publicacao)));
+  if(ord==='valor') l.sort((a,b)=>(+b.valor||0)-(+a.valor||0));
+
+  const tb=$('opBody');
+  $('opMaisWrap').classList.toggle('d-none',l.length<=opLimite);
+  if(!l.length){
+    tb.innerHTML=`<tr><td colspan="6" class="vazio">${oport.length?'Nenhuma licitação corresponde aos filtros.':'Nenhuma busca disponível ainda. Clique em <strong>Buscar agora</strong>.'}</td></tr>`;
+    return;
+  }
+  tb.innerHTML=l.slice(0,opLimite).map(r=>{
+    const d=opDias(r), reg=opRegistrado(r);
+    const css=d===null?'p-cinza':d<=3?'p-venc':d<=7?'p-urg':'p-neutro';
+    const fimTxt=r.encerramento?new Date(r.encerramento).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'–';
+    return `<tr class="${r.nova?'op-nova':''}">
+      <td><div class="orgao">${r.nova?'<span class="pill p-nova me-1">NOVA</span>':''}${esc(r.orgao)}</div>
+        <div class="meta">${esc(r.municipio)}/${esc(r.uf)} · ${esc(r.titulo)} · ${esc(r.modalidade)}${r.situacao&&r.situacao!=='Divulgada no PNCP'?' · <strong>'+esc(r.situacao)+'</strong>':''}</div>
+        <div class="op-obj mt-1" title="Clique para ver tudo" onclick="this.classList.toggle('aberto')">${esc(r.objeto)}</div>
+        <div class="mt-1">${r.palavras.map(p=>`<span class="pill p-cinza me-1">${esc(p)}</span>`).join('')}${r.no_objeto?'':'<span class="pill p-cinza me-1">só nos itens</span>'}${r.excluida_por?`<span class="pill p-warn">${r.excluida?'excluída':'rebaixada'} por: ${esc(r.excluida_por)}</span>`:''}</div></td>
+      <td class="meta">${esc(r.plataforma)}</td>
+      <td class="num">${r.valor?brl(r.valor):'<span class="meta">–</span>'}</td>
+      <td class="text-nowrap">${fimTxt}</td>
+      <td class="num"><span class="pill ${css}">${d===null?'–':d===0?'hoje':d}</span></td>
+      <td class="acoes text-end text-nowrap no-print">
+        <a class="btn btn-sm btn-light" href="${esc(r.link_pncp)}" target="_blank" rel="noopener" title="Ver edital no PNCP"><i class="bi bi-box-arrow-up-right"></i></a>
+        ${r.link_origem?`<a class="btn btn-sm btn-light" href="${esc(r.link_origem)}" target="_blank" rel="noopener" title="Abrir na plataforma de origem"><i class="bi bi-globe"></i></a>`:''}
+        ${reg?`<span class="pill p-ok ms-1" title="Já cadastrado como ${esc(reg.situacao)}">Registrada</span>`
+             :`<button class="btn btn-sm btn-light" title="Cadastrar como Aguardando Disputa" onclick="registrarDisputa('${esc(r.id)}')"><i class="bi bi-flag"></i></button>`}
+      </td></tr>`;
+  }).join('');
+}
+
+function registrarDisputa(id){
+  const r=oport.find(x=>x.id===id); if(!r) return;
+  abrirForm();
+  $('formTitulo').textContent='Registrar disputa';
+  $('iOrgao').value=`${r.orgao} - ${r.uf}`;
+  $('iAno').value=r.ano||new Date().getFullYear();
+  $('iEdital').value=(String(r.titulo).match(/\d+\/\d{4}/)||[''])[0];
+  $('iSituacao').value=SITUACAO_EM_DISPUTA;
+  $('iLink').value=r.link_pncp;
+  atualizarPrevia();
+}
+
+async function buscarAgora(){
+  const btn=$('opBuscar'), bar=$('opProgBar');
+  btn.disabled=true; btn.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Buscando…';
+  $('opProg').classList.remove('d-none'); bar.style.width='3%';
+  try{
+    const cfg=await (await fetch('oportunidades/config.json?v='+Date.now())).json();
+    const {itens,falhas}=await MotorPNCP.buscar(cfg,{aoProgredir:(n,t)=>bar.style.width=Math.round(n/t*100)+'%'});
+    if(!itens.length&&falhas.length) throw new Error('O PNCP não respondeu. Tente de novo em alguns minutos.');
+    // "Nova" = não estava na base da rotina, ou já era nova lá
+    const base=new Map(oport.map(r=>[r.id,r]));
+    oport=itens.map(r=>{ const ant=base.get(r.id); return {...r,nova:ant?!!ant.nova:!!opMeta}; });
+    opMeta={...(opMeta||{}),palavras:cfg.palavras_chave,falhas};
+    opBuscaAoVivo=new Date();
+    montarFiltrosOport(); renderizarOportInfo(); atualizarContadorOport(); renderOport();
+    avisar(`Busca concluída: ${opRelevantes().length} licitações relevantes abertas.`);
+  }catch(e){ avisar(e.message,true); }
+  finally{
+    btn.disabled=false; btn.innerHTML='<i class="bi bi-search me-1"></i>Buscar agora';
+    setTimeout(()=>$('opProg').classList.add('d-none'),600);
+  }
+}
+
+['opBusca','opUf','opPalavra','opOrdem','opNovas','opItens','opExcl'].forEach(id=>$(id).addEventListener('input',()=>{opLimite=200;renderOport();}));
+
 /* ============ INÍCIO ============ */
 if(DEMO) $('bannerDemo').classList.remove('d-none');
 carregar();
+carregarOport();
 </script>
 </body>
 </html>
