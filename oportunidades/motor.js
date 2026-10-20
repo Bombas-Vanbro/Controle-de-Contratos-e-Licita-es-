@@ -38,6 +38,8 @@
       id: it.numero_controle_pncp,
       fonte: 'PNCP',
       orgao: it.orgao_nome,
+      cnpj: it.orgao_cnpj,
+      numero: it.numero,
       municipio: it.municipio_nome,
       uf: it.uf,
       titulo: it.title,
@@ -159,20 +161,26 @@
     return saida;
   }
 
-  /* Junta editais do PNCP com os de outra fonte. Um edital que já está no PNCP
-     (mesmo município, número e ano) não se repete: o PNCP ganha o link da outra fonte. */
+  /* Junta editais do PNCP com os de outras fontes. Um edital que já está no PNCP não se
+     repete: o PNCP ganha o link da outra fonte (links_extras). Mesmo edital =
+     mesmo CNPJ e número (Sanepar "153926", Casan "PL074/2026"), ou mesmo município,
+     número e ano (LicitaCon, que não informa CNPJ). */
   function mesclar(pncp, outros) {
     const numAno = r => {
       const m = /(\d+)\s*\/\s*(\d{4})/.exec(r.numero ? `${r.numero}/${r.ano}` : r.titulo || '');
       return m ? `${Number(m[1])}/${m[2]}` : '';
     };
-    const chave = r => r.municipio && numAno(r) ? `${r.uf}|${normalizar(r.municipio)}|${numAno(r)}` : '';
+    const numero = r => String(r.numero || '').toUpperCase().replace(/\s+/g, '').replace(/(\/\d{4})\1$/, '$1');
+    const chaves = r => [
+      r.cnpj && r.numero ? `${r.cnpj}|${numero(r)}` : '',
+      r.municipio && numAno(r) ? `${r.uf}|${normalizar(r.municipio)}|${numAno(r)}` : ''
+    ].filter(Boolean);
     const porChave = new Map();
-    for (const r of pncp) { const k = chave(r); if (k) porChave.set(k, r); }
+    for (const r of pncp) for (const k of chaves(r)) porChave.set(k, r);
     const extras = [];
     for (const r of outros) {
-      const igual = porChave.get(chave(r));
-      if (igual) igual.link_licitacon = r.link;
+      const igual = chaves(r).map(k => porChave.get(k)).find(Boolean);
+      if (igual) igual.links_extras = [...(igual.links_extras || []), { fonte: r.fonte, link: r.link }];
       else extras.push(r);
     }
     return [...pncp, ...extras];

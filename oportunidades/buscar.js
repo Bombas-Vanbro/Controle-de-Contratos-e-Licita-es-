@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const motor = require('./motor.js');
+const saneamento = require('./saneamento.js');
 
 const pasta = __dirname;
 const lerJson = (arq, padrao) => {
@@ -57,7 +58,19 @@ const lerJson = (arq, padrao) => {
       erros['LicitaCon (TCE-RS)'] = 'nenhuma coleta enviada pelo PC ainda';
     }
   }
-  const itens = motor.mesclar(pncp.itens, doLicitacon);
+  // Portais próprios da Sanepar e da Casan: se um falhar, reaproveita os editais dele da busca anterior
+  let doSaneamento = [];
+  if (config.portais_saneamento !== false) {
+    const san = await saneamento.buscar();
+    doSaneamento = motor.filtrarPorPalavras(san.itens, config);
+    for (const fonte of san.falhas) {
+      falhas.push(fonte);
+      erros[fonte] = san.erros[fonte];
+      doSaneamento.push(...(anterior.itens || []).filter(r => r.fonte === fonte));
+    }
+    console.log(`[Saneamento] ${san.itens.length} licitações lidas, ${doSaneamento.length} com as palavras-chave. Falhas: ${san.falhas.join(', ') || 'nenhuma'}`);
+  }
+  const itens = motor.mesclar(pncp.itens, [...doLicitacon, ...doSaneamento]);
 
   for (const r of itens) {
     if (!historico[r.id]) historico[r.id] = hoje;

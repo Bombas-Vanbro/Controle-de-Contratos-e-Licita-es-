@@ -166,6 +166,9 @@
           <div class="meta flex-grow-1" id="opInfo">Carregando…</div>
           <a class="btn btn-sm btn-light" target="_blank" rel="noopener" title="Editar palavras-chave e termos de exclusão no GitHub"
              href="https://github.com/Jonatha-Vanbro/Controle-de-Contratos-e-Licita-es-/edit/main/oportunidades/config.json"><i class="bi bi-sliders me-1"></i>Palavras-chave</a>
+          <!-- O site da Sanesul bloqueia leitura automática: fica o atalho para conferir à mão -->
+          <a class="btn btn-sm btn-light" target="_blank" rel="noopener" title="O site da Sanesul não permite leitura automática: confira os pregões manualmente"
+             href="https://www.sanesul.ms.gov.br/licitacao/tipolicitacao/pregaoEletronico"><i class="bi bi-box-arrow-up-right me-1"></i>Sanesul</a>
           <button class="btn btn-sm btn-navy" id="opBuscar" onclick="buscarAgora()"><i class="bi bi-search me-1"></i>Buscar agora</button>
         </div>
         <div class="progress d-none mb-2" id="opProg" style="height:6px"><div class="progress-bar" id="opProgBar" style="width:0%"></div></div>
@@ -173,7 +176,7 @@
           <div class="col-12 col-md-4"><input id="opBusca" class="form-control form-control-sm" placeholder="Filtrar por órgão, cidade ou objeto"></div>
           <div class="col-6 col-md-2"><select id="opUf" class="form-select form-select-sm"><option value="">Todos os estados</option></select></div>
           <div class="col-6 col-md-2"><select id="opFonte" class="form-select form-select-sm">
-            <option value="">Todas as fontes</option><option value="PNCP">PNCP</option><option value="LicitaCon">LicitaCon (TCE-RS)</option></select></div>
+            <option value="">Todas as fontes</option><option value="PNCP">PNCP</option><option value="LicitaCon">LicitaCon (TCE-RS)</option><option value="Sanepar">Sanepar</option><option value="Casan">Casan</option></select></div>
           <div class="col-6 col-md-2"><select id="opPalavra" class="form-select form-select-sm"><option value="">Todas as palavras</option></select></div>
           <div class="col-6 col-md-2"><select id="opOrdem" class="form-select form-select-sm">
             <option value="prazo">Prazo mais próximo</option><option value="pub">Mais recentes</option><option value="valor">Maior valor</option></select></div>
@@ -618,9 +621,9 @@ function renderizarOportInfo(){
   else txt='Ainda não há busca automática salva. Clique em Buscar agora.';
   const falhas=(opMeta&&opMeta.falhas)||[], erros=(opMeta&&opMeta.erros)||{};
   const lcEm=opMeta&&opMeta.licitacon_coletado_em;
-  $('opInfo').innerHTML=esc(txt)+' · Fontes: PNCP (inclui Compras.gov.br, BLL, Licitações-e, BNC e demais plataformas) e LicitaCon (TCE-RS'
-    +(lcEm?', coletado em '+new Date(lcEm).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'')+')'
-    +(opBuscaAoVivo?'<div class="mt-1">O LicitaCon não permite consulta direta pelo navegador: os editais dele vêm da última coleta.</div>':'')
+  $('opInfo').innerHTML=esc(txt)+' · Fontes: PNCP (inclui Compras.gov.br, BLL, Licitações-e, BNC e demais plataformas), LicitaCon (TCE-RS'
+    +(lcEm?', coletado em '+new Date(lcEm).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'')+'), Sanepar e Casan'
+    +(opBuscaAoVivo?'<div class="mt-1">LicitaCon, Sanepar e Casan não permitem consulta direta pelo navegador: os editais deles vêm da última rotina automática.</div>':'')
     +(falhas.length?`<div class="text-danger mt-1"><i class="bi bi-exclamation-triangle me-1"></i>Não foi possível consultar: ${
       falhas.map(f=>esc(f)+(erros[f]?` <span class="meta">(${esc(erros[f])})</span>`:'')).join(', ')}</div>`:'');
 }
@@ -633,9 +636,12 @@ function atualizarContadorOport(){
   $('cntOportNovas').classList.toggle('d-none',!novas);
 }
 
-// Edital já cadastrado no controle (mesmo link do PNCP ou do LicitaCon)
+// Links do mesmo edital em outras fontes (o PNCP unifica os repetidos); link_licitacon vem de bases antigas
+const opLinksExtras = r => r.links_extras||(r.link_licitacon?[{fonte:'LicitaCon',link:r.link_licitacon}]:[]);
+
+// Edital já cadastrado no controle (mesmo link em qualquer fonte)
 function opRegistrado(r){
-  const links=[opLink(r),r.link_licitacon].filter(Boolean);
+  const links=[opLink(r),...opLinksExtras(r).map(x=>x.link)].filter(Boolean);
   return [...contratos,...historico].find(c=>c.link&&links.includes(c.link));
 }
 
@@ -671,7 +677,7 @@ function renderOport(){
     // O LicitaCon informa só a data, sem horário
     const fimTxt=!r.encerramento?'–':r.so_data?new Date(r.encerramento).toLocaleDateString('pt-BR')
       :new Date(r.encerramento).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'});
-    const lc=opFonte(r)==='LicitaCon';
+    const fonte=opFonte(r);
     return `<tr class="${r.nova?'op-nova':''}">
       <td><div class="orgao">${r.nova?'<span class="pill p-nova me-1">NOVA</span>':''}${esc(r.orgao)}</div>
         <div class="meta">${r.municipio?esc(r.municipio)+'/':''}${esc(r.uf)} · ${esc(r.titulo)} · ${esc(r.modalidade)}${r.situacao&&r.situacao!=='Divulgada no PNCP'?' · <strong>'+esc(r.situacao)+'</strong>':''}</div>
@@ -682,8 +688,8 @@ function renderOport(){
       <td class="text-nowrap">${fimTxt}</td>
       <td class="num"><span class="pill ${css}">${d===null?'–':d===0?'hoje':d}</span></td>
       <td class="acoes text-end text-nowrap no-print">
-        <a class="btn btn-sm btn-light" href="${esc(opLink(r))}" target="_blank" rel="noopener" title="Ver edital no ${lc?'LicitaCon':'PNCP'}"><i class="bi bi-box-arrow-up-right"></i></a>
-        ${r.link_licitacon?`<a class="btn btn-sm btn-light" href="${esc(r.link_licitacon)}" target="_blank" rel="noopener" title="Ver também no LicitaCon (TCE-RS)"><i class="bi bi-bank"></i></a>`:''}
+        <a class="btn btn-sm btn-light" href="${esc(opLink(r))}" target="_blank" rel="noopener" title="Ver edital no ${esc(fonte)}"><i class="bi bi-box-arrow-up-right"></i></a>
+        ${opLinksExtras(r).map(x=>`<a class="btn btn-sm btn-light" href="${esc(x.link)}" target="_blank" rel="noopener" title="Ver também no ${esc(x.fonte)}"><i class="bi bi-bank"></i></a>`).join('')}
         ${r.link_origem?`<a class="btn btn-sm btn-light" href="${esc(r.link_origem)}" target="_blank" rel="noopener" title="Abrir na plataforma de origem"><i class="bi bi-globe"></i></a>`:''}
         ${reg?`<span class="pill p-ok ms-1" title="Já cadastrado como ${esc(reg.situacao)}">Registrada</span>`
              :`<button class="btn btn-sm btn-light" title="Cadastrar como Aguardando Disputa" onclick="registrarDisputa('${esc(r.id)}')"><i class="bi bi-flag"></i></button>`}
@@ -697,7 +703,7 @@ function registrarDisputa(id){
   $('formTitulo').textContent='Registrar disputa';
   $('iOrgao').value=`${r.orgao} - ${r.uf}`;
   $('iAno').value=r.ano||new Date().getFullYear();
-  $('iEdital').value=(String(r.titulo).match(/\d+\/\d{4}/)||[''])[0];
+  $('iEdital').value=(String(r.titulo).match(/\d+\/\d{4}/)||[String(r.titulo).replace(/^(Edital )?nº\s*/i,'')])[0];
   $('iSituacao').value=SITUACAO_EM_DISPUTA;
   $('iLink').value=opLink(r);
   atualizarPrevia();
@@ -711,14 +717,16 @@ async function buscarAgora(){
     const cfg=await (await fetch('oportunidades/config.json?v='+Date.now())).json();
     const {itens,falhas}=await MotorPNCP.buscar(cfg,{aoProgredir:(n,t)=>bar.style.width=Math.round(n/t*100)+'%'});
     if(!itens.length&&falhas.length) throw new Error('O PNCP não respondeu. Tente de novo em alguns minutos.');
-    // O LicitaCon não aceita consulta pelo navegador: mantém os editais dele da última rotina
-    const doLicitacon=oport.filter(r=>r.fonte==='LicitaCon').map(r=>({...r}));
-    const todos=MotorPNCP.mesclar(itens,doLicitacon);
-    // "Nova" = não estava na base da rotina, ou já era nova lá
+    // LicitaCon, Sanepar e Casan não aceitam consulta pelo navegador: mantém os editais deles
+    // da última rotina, inclusive os links que já estavam unificados em editais do PNCP
     const base=new Map(oport.map(r=>[r.id,r]));
+    const outros=oport.filter(r=>opFonte(r)!=='PNCP').map(r=>({...r}));
+    for(const r of itens){ const ant=base.get(r.id); if(ant&&ant.links_extras) r.links_extras=ant.links_extras; }
+    const todos=MotorPNCP.mesclar(itens,outros.filter(o=>!itens.some(r=>(r.links_extras||[]).some(x=>x.link===o.link))));
+    // "Nova" = não estava na base da rotina, ou já era nova lá
     oport=todos.map(r=>{ const ant=base.get(r.id); return {...r,nova:ant?!!ant.nova:!!opMeta}; });
-    const falhasLc=((opMeta&&opMeta.falhas)||[]).filter(f=>/LicitaCon/.test(f));
-    opMeta={...(opMeta||{}),palavras:cfg.palavras_chave,falhas:[...falhas,...falhasLc]};
+    const falhasOutras=((opMeta&&opMeta.falhas)||[]).filter(f=>!(cfg.palavras_chave||[]).includes(f));
+    opMeta={...(opMeta||{}),palavras:cfg.palavras_chave,falhas:[...falhas,...falhasOutras]};
     opBuscaAoVivo=new Date();
     montarFiltrosOport(); renderizarOportInfo(); atualizarContadorOport(); renderOport();
     avisar(`Busca concluída: ${opRelevantes().length} licitações relevantes abertas.`);
