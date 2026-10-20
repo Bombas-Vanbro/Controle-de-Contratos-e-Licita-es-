@@ -212,8 +212,11 @@
           <div class="col-md-4"><label class="form-label" for="iEdital">Nº Licitação / Edital</label><input id="iEdital" class="form-control" placeholder="27/2026"></div>
           <div class="col-md-4"><label class="form-label" for="iContrato">Nº Contrato / ARP</label><input id="iContrato" class="form-control" placeholder="61/2026"></div>
           <div class="col-md-4"><label class="form-label" for="iSituacao">Situação</label><select id="iSituacao" class="form-select"><option>Ativo</option><option>Em Renovação</option><option>Suspenso</option><option>Encerrado</option><option>Aguardando Disputa</option><option>Perdemos a Disputa</option></select></div>
+          <!-- Dados da disputa: aparecem para "Aguardando Disputa" (ou quando já preenchidos) -->
+          <div class="col-md-6 campo-disputa"><label class="form-label" for="iPlataforma">Plataforma</label><input id="iPlataforma" class="form-control" placeholder="BLL, Licitações-e, Compras.gov.br…"></div>
+          <div class="col-md-6 campo-disputa"><label class="form-label" for="iPropostasAte">Propostas até</label><input id="iPropostasAte" type="datetime-local" class="form-control"></div>
           <div class="col-12"><label class="form-label" for="iPedidos">Pedidos internos</label><input id="iPedidos" class="form-control" placeholder="Separe por ponto e vírgula: 319796; 320796"></div>
-          <div class="col-md-6"><label class="form-label" for="iValorTotal">Valor total (R$)</label><input id="iValorTotal" class="form-control moeda" inputmode="decimal" placeholder="0,00"></div>
+          <div class="col-md-6"><label class="form-label" for="iValorTotal" id="lblValorTotal">Valor total (R$)</label><input id="iValorTotal" class="form-control moeda" inputmode="decimal" placeholder="0,00"></div>
           <div class="col-md-6"><label class="form-label" for="iValorFaturado">Valor faturado (R$)</label><input id="iValorFaturado" class="form-control moeda" inputmode="decimal" placeholder="0,00"></div>
           <div class="col-md-6"><label class="form-label" for="iInicio">Data início</label><input id="iInicio" type="date" class="form-control"></div>
           <div class="col-md-6"><label class="form-label" for="iTermino">Data término</label><input id="iTermino" type="date" class="form-control"></div>
@@ -432,7 +435,8 @@ function renderizar(){
     const hist=abaAtual==='historico';
     return `<tr>
       <td><div class="orgao">${esc(c.orgao)}</div>
-        <div class="meta">Edital ${esc(c.edital||'–')} · Contrato/ARP ${esc(c.contrato||'–')}${c.ano?' · '+c.ano:''}</div></td>
+        <div class="meta">Edital ${esc(c.edital||'–')} · Contrato/ARP ${esc(c.contrato||'–')}${c.ano?' · '+c.ano:''}</div>
+        ${c.plataforma||c.propostasAte?`<div class="meta">${c.plataforma?'Plataforma '+esc(c.plataforma):''}${c.plataforma&&c.propostasAte?' · ':''}${c.propostasAte?'propostas até '+esc(dataHoraBR(c.propostasAte)):''}</div>`:''}</td>
       <td>${ped.length?ped.map(p=>`<span class="pill p-cinza me-1 mb-1">${esc(p)}</span>`).join(''):'<span class="meta">–</span>'}</td>
       <td class="num">${brl(vt)}</td>
       <td class="num">${brl(c.valorFaturado)}</td>
@@ -476,7 +480,17 @@ async function abrirLink(id){
 /* --- Formulário --- */
 const mdForm=new bootstrap.Modal('#mdForm');
 const campos={id:'iId',ano:'iAno',orgao:'iOrgao',edital:'iEdital',contrato:'iContrato',pedidos:'iPedidos',
-  dataInicio:'iInicio',dataTermino:'iTermino',situacao:'iSituacao',link:'iLink'};
+  dataInicio:'iInicio',dataTermino:'iTermino',situacao:'iSituacao',link:'iLink',
+  plataforma:'iPlataforma',propostasAte:'iPropostasAte'};
+// "2026-10-27T09:00:00.000Z" ou "2026-10-27T09:00" -> valor aceito pelo campo datetime-local
+function paraDataHoraLocal(s){
+  if(!s) return '';
+  if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s)) return s;
+  const d=new Date(s); if(isNaN(d)) return '';
+  const p=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+const dataHoraBR = s => { const v=paraDataHoraLocal(s); return v?new Date(v).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):''; };
 const $=id=>document.getElementById(id);
 
 function abrirForm(id){
@@ -485,6 +499,7 @@ function abrirForm(id){
   $('formContrato').reset(); $('formContrato').classList.remove('was-validated');
   $('formTitulo').textContent=c?'Editar contrato':'Novo contrato';
   Object.entries(campos).forEach(([k,el])=>$(el).value=c?(c[k]??''):'');
+  $('iPropostasAte').value=c?paraDataHoraLocal(c.propostasAte):'';
   if(!c){ $('iAno').value=new Date().getFullYear(); $('iSituacao').value='Ativo'; }
   $('iValorTotal').value=c?fmtMoedaInput(c.valorTotal):'';
   $('iValorFaturado').value=c?fmtMoedaInput(c.valorFaturado):'';
@@ -508,6 +523,10 @@ function atualizarPrevia(){
     <div><div class="meta">Status vigência</div>${pillStatus(st)}</div>`;
   $('avisoEncerrar').classList.toggle('d-none',!SITUACOES_HISTORICO.includes(d.situacao));
   $('avisoSituacao').textContent=d.situacao;
+  // Em disputa: mostra plataforma e prazo, e o valor total passa a ser o estimado do edital
+  const disputa=d.situacao===SITUACAO_EM_DISPUTA;
+  document.querySelectorAll('.campo-disputa').forEach(el=>el.classList.toggle('d-none',!disputa&&!d.plataforma&&!d.propostasAte));
+  $('lblValorTotal').textContent=disputa?'Valor estimado (R$)':'Valor total (R$)';
 }
 $('formContrato').addEventListener('input',atualizarPrevia);
 $('iInicio').addEventListener('change',()=>{ if(!$('iId').value && $('iInicio').value) $('iAno').value=$('iInicio').value.slice(0,4); });
@@ -749,6 +768,10 @@ function registrarDisputa(id){
   $('iEdital').value=(String(r.titulo).match(/\d+\/\d{4}/)||[String(r.titulo).replace(/^(Edital )?nº\s*/i,'')])[0];
   $('iSituacao').value=SITUACAO_EM_DISPUTA;
   $('iLink').value=opLink(r);
+  $('iPlataforma').value=r.plataforma||'';
+  $('iValorTotal').value=r.valor?fmtMoedaInput(r.valor):'';
+  // O LicitaCon só informa a data: sem horário, fica no fim do dia
+  $('iPropostasAte').value=paraDataHoraLocal(r.so_data?String(r.encerramento).slice(0,10)+'T23:59':r.encerramento);
   atualizarPrevia();
 }
 
