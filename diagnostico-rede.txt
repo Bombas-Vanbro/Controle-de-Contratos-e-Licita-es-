@@ -1,0 +1,3 @@
+https://licitacoes.sanepar.com.br/SLI11000.aspx -> 200 em 1.571460s, 50043 bytes, desafio cloudflare: 0
+https://www.casan.com.br/licitacoes/editais-visualiza?licitacao_modalidade_id=&licitacao_ano=&numero_edital=&licitacao_objeto= -> 200 em 1.436790s, 228291 bytes, desafio cloudflare: 0
+https://www.sanesul.ms.gov.br/licitacao/tipolicitacao/pregaoEletronico -> 403 em 0.251821s, 5563 bytes, desafio cloudflare: 1
