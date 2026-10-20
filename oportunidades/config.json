@@ -15,7 +15,13 @@
     "combustível",
     "combustíveis",
     "hospital",
-    "hospitais"
+    "hospitais",
+    "bomba de infusão",
+    "bombas de infusão",
+    "bomba peristáltica",
+    "bombas peristálticas",
+    "bomba injetora",
+    "bombas injetoras"
   ],
   "nunca_excluir_se_objeto_contem": [
     "bomba",
