@@ -3,10 +3,19 @@
     "bomba",
     "motobomba",
     "submersa",
-    "motor",
-    "hidráulico",
     "poço artesiano",
     "conjunto motobomba"
+  ],
+  "palavras_chave_inativas": [
+    "motor",
+    "hidráulico"
+  ],
+  "excluir_sempre": [
+    "dosadora",
+    "combustível",
+    "combustíveis",
+    "hospital",
+    "hospitais"
   ],
   "nunca_excluir_se_objeto_contem": [
     "bomba",

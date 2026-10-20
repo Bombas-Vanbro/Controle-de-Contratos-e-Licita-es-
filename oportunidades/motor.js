@@ -115,16 +115,22 @@
     return { itens, falhas, erros };
   }
 
-  /* Se o objeto cita uma palavra protegida (ex.: bomba), o edital nunca é excluído.
+  /* "excluir_sempre" esconde o edital mesmo que o objeto cite uma palavra protegida
+     (ex.: "bomba dosadora", "bomba de combustível").
+     Fora isso, se o objeto cita uma palavra protegida (ex.: bomba), o edital nunca é excluído.
      Se a palavra protegida aparece só nos itens, o edital vai para "citadas só nos itens"
      em vez de sumir; nos demais casos ele fica oculto (visível com "Mostrar excluídas"). */
   function aplicarExclusoes(itens, config) {
     const protegidas = (config.nunca_excluir_se_objeto_contem || []).filter(Boolean);
     const reProt = protegidas.map(padrao);
     const protNorm = protegidas.map(normalizar);
-    const excluir = (config.excluir_se_objeto_contem || []).filter(Boolean).map(t => ({ termo: t, re: padrao(t) }));
+    const termos = lista => (lista || []).filter(Boolean).map(t => ({ termo: t, re: padrao(t) }));
+    const sempre = termos(config.excluir_sempre);
+    const excluir = termos(config.excluir_se_objeto_contem);
     for (const r of itens) {
       const norm = normalizar(r.objeto);
+      const forte = sempre.find(x => x.re.test(norm));
+      if (forte) { r.excluida = true; r.excluida_por = forte.termo; continue; }
       if (reProt.some(re => re.test(norm))) continue;
       const ex = excluir.find(x => x.re.test(norm));
       if (!ex) continue;
