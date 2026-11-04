@@ -17,7 +17,7 @@ $ErrorActionPreference = 'Stop'
 # junto alteracoes em andamento de quem esta editando o sistema
 $pasta   = Join-Path $env:LOCALAPPDATA 'ColetaLicitaCon'
 $repo    = Join-Path $pasta 'repo'
-$origem  = 'https://github.com/Jonatha-Vanbro/Controle-de-Contratos-e-Licita-es-.git'
+$origem  = 'https://github.com/Bombas-Vanbro/Controle-de-Contratos-e-Licita-es-.git'
 New-Item -ItemType Directory -Force $pasta | Out-Null
 $arqLog  = Join-Path $pasta 'coleta.log'
 $utf8 = New-Object System.Text.UTF8Encoding($false)
