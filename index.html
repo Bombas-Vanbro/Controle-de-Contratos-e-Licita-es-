@@ -253,6 +253,71 @@
   </div>
 </div>
 
+<!-- Modal: itens da ata e fornecimentos (controle separado do faturamento) -->
+<div class="modal fade" id="mdItens" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div><h5 class="modal-title">Itens da ata</h5><div class="meta" id="itCabecalho"></div></div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Cadastro / edição de item -->
+        <form id="formItem" class="row g-2 align-items-end mb-2" novalidate>
+          <input type="hidden" id="itId">
+          <div class="col-3 col-md-1"><label class="form-label" for="itNumero">Nº item</label><input id="itNumero" class="form-control form-control-sm"></div>
+          <div class="col-9 col-md-2"><label class="form-label" for="itCodigo">Código Vanbro</label><input id="itCodigo" class="form-control form-control-sm"></div>
+          <div class="col-12 col-md-5"><label class="form-label" for="itDescricao">Descrição *</label><input id="itDescricao" class="form-control form-control-sm"></div>
+          <div class="col-4 col-md-1"><label class="form-label" for="itUnidade">Unidade</label><input id="itUnidade" class="form-control form-control-sm" placeholder="UN"></div>
+          <div class="col-8 col-md-1"><label class="form-label" for="itQtd">Qtd. ata *</label><input id="itQtd" class="form-control form-control-sm" inputmode="decimal"></div>
+          <div class="col-12 col-md-2 d-flex gap-1">
+            <button type="submit" class="btn btn-navy btn-sm flex-grow-1" id="itSalvar"><i class="bi bi-plus-lg me-1"></i>Adicionar</button>
+            <button type="button" class="btn btn-light btn-sm d-none" id="itCancelar" onclick="limparFormItem()" title="Cancelar edição"><i class="bi bi-x-lg"></i></button>
+          </div>
+        </form>
+        <details class="mb-3 small" id="itColarBox">
+          <summary class="text-primary" style="cursor:pointer">Colar vários itens de uma planilha</summary>
+          <div class="mt-2">
+            <div class="meta mb-1">Copie as linhas do Excel com as colunas <strong>Nº item · Código · Descrição · Unidade · Qtd. ata</strong> (ou só Descrição · Unidade · Qtd.) e cole abaixo.</div>
+            <textarea id="itColar" class="form-control form-control-sm font-monospace" rows="4"></textarea>
+            <div class="d-flex align-items-center gap-2 mt-2"><button type="button" class="btn btn-sm btn-light" id="itImportar" onclick="importarItens()">Importar</button><span class="meta" id="itColarPrevia"></span></div>
+          </div>
+        </details>
+
+        <div class="tabela-wrap mb-4">
+          <table class="table tb mb-0" style="min-width:760px">
+            <thead><tr><th>Nº</th><th>Código</th><th>Descrição</th><th>Un</th><th class="num">Qtd. ata</th><th class="num">Fornecido</th><th class="num">Saldo</th><th></th></tr></thead>
+            <tbody id="itBody"></tbody>
+          </table>
+        </div>
+
+        <!-- Fornecimentos -->
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="mb-0" style="color:var(--navy);font-weight:700">Fornecimentos</h6>
+          <button type="button" class="btn btn-sm btn-navy" id="fnAbrir" onclick="abrirFormFornecimento()"><i class="bi bi-truck me-1"></i>Registrar fornecimento</button>
+        </div>
+        <form id="formFornecimento" class="previa mb-3 d-none" novalidate>
+          <div class="row g-2 mb-2">
+            <div class="col-6 col-md-3"><label class="form-label" for="fnData">Data *</label><input id="fnData" type="date" class="form-control form-control-sm"></div>
+            <div class="col-6 col-md-3"><label class="form-label" for="fnPedido">Pedido interno</label><input id="fnPedido" class="form-control form-control-sm" placeholder="324226"></div>
+            <div class="col-12 col-md-6"><label class="form-label" for="fnObs">Observação</label><input id="fnObs" class="form-control form-control-sm" placeholder="NF, solicitação do órgão…"></div>
+          </div>
+          <div class="tabela-wrap"><table class="table table-sm mb-2" style="min-width:560px;background:transparent">
+            <thead><tr><th>Item</th><th class="num">Saldo</th><th class="num" style="width:140px">Quantidade</th></tr></thead>
+            <tbody id="fnBody"></tbody>
+          </table></div>
+          <div class="text-danger small mb-2 d-none" id="fnErro"></div>
+          <div class="d-flex gap-2 justify-content-end">
+            <button type="button" class="btn btn-sm btn-light" onclick="fecharFormFornecimento()">Cancelar</button>
+            <button type="submit" class="btn btn-sm btn-navy" id="fnSalvar">Salvar fornecimento</button>
+          </div>
+        </form>
+        <div id="fnLista"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast-container position-fixed bottom-0 end-0 p-3">
   <div id="toast" class="toast align-items-center text-bg-dark border-0"><div class="d-flex"><div class="toast-body" id="toastMsg"></div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>
 </div>
@@ -266,8 +331,10 @@ const API_URL = 'https://script.google.com/macros/s/AKfycby3R-Gm6qkSwlrKvQ3aEFhP
 
 /* ============ ESTADO ============ */
 let contratos = [], historico = [];
+let itensAta = [], fornecimentos = [];   // itens da ata de cada contrato e quantidades fornecidas
 let abaAtual = 'contratos', filtroStatus = '';
-const DEMO = !API_URL;
+// "?demo" no endereço usa dados de teste (não grava na planilha)
+const DEMO = !API_URL || new URLSearchParams(location.search).has('demo');
 // Situações que vão para o Histórico ao salvar (igual ao backend)
 const SITUACOES_HISTORICO = ['Encerrado','Perdemos a Disputa'];
 // Situação que fica fora dos totais (ainda não é contrato ganho)
@@ -331,11 +398,53 @@ const demoDB = {
     dataInicio:'2026-06-25', dataTermino:'2027-06-25', situacao:'Ativo',
     link:'S:\\Administrativo\\Vendas\\Licitacoes - Cias de Agua\\Prefeituras\\PM Mondaí - SC\\PE N° 27_2026\\ATA - Mondaí - SC_assinado.pdf'
   }],
-  historico:[]
+  historico:[],
+  itens:[
+    {id:'IT-DEMO1',contratoId:'CT-DEMO01',numero:'1',codigo:'MB-0501',descricao:'Conjunto motobomba submersa 5 CV',unidade:'UN',quantidade:12},
+    {id:'IT-DEMO2',contratoId:'CT-DEMO01',numero:'2',codigo:'CB-0010',descricao:'Cabo PP 4x6 mm²',unidade:'M',quantidade:300}
+  ],
+  fornecimentos:[
+    {id:'FN-DEMO1',contratoId:'CT-DEMO01',itemId:'IT-DEMO1',data:'2026-07-10',pedido:'319796',quantidade:4,obs:'',registradoEm:'2026-07-10T10:00'},
+    {id:'FN-DEMO1',contratoId:'CT-DEMO01',itemId:'IT-DEMO2',data:'2026-07-10',pedido:'319796',quantidade:120,obs:'',registradoEm:'2026-07-10T10:00'}
+  ]
 };
+// Mesmas regras do Apps Script para itens e fornecimentos
+function demoItens(p){
+  const fornecido=id=>demoDB.fornecimentos.filter(f=>f.itemId===id).reduce((s,f)=>s+Number(f.quantidade),0);
+  const novoId=pre=>pre+'-'+Math.random().toString(16).slice(2,10).toUpperCase();
+  if(p.action==='salvarItens'){
+    const d=JSON.parse(p.payload);
+    for(const it of d.itens){
+      if(!String(it.descricao||'').trim()) throw new Error('Item '+(it.numero||'')+': informe a descrição.');
+      if(!(Number(it.quantidade)>0)) throw new Error('Item '+(it.numero||'')+': informe a quantidade da ata (maior que zero).');
+      if(it.id&&Number(it.quantidade)<fornecido(it.id)) throw new Error('Item '+(it.numero||'')+': a quantidade da ata não pode ficar abaixo do que já foi fornecido ('+fornecido(it.id)+').');
+      const reg={...it,id:it.id||novoId('IT'),contratoId:d.contratoId,unidade:String(it.unidade||'').toUpperCase()};
+      demoDB.itens=demoDB.itens.filter(x=>x.id!==reg.id).concat(reg);
+    }
+    return {ok:true};
+  }
+  if(p.action==='excluirItem'){
+    if(fornecido(p.id)) throw new Error('Este item já tem fornecimentos lançados. Exclua os lançamentos antes.');
+    demoDB.itens=demoDB.itens.filter(x=>x.id!==p.id); return {ok:true};
+  }
+  if(p.action==='salvarFornecimento'){
+    const d=JSON.parse(p.payload), id=novoId('FN');
+    const linhas=d.itens.filter(x=>Number(x.quantidade)>0);
+    if(!linhas.length) throw new Error('Informe a quantidade de pelo menos um item.');
+    for(const x of linhas){
+      const it=demoDB.itens.find(i=>i.id===x.itemId&&i.contratoId===d.contratoId);
+      const sd=Number(it.quantidade)-fornecido(it.id);
+      if(Number(x.quantidade)>sd+1e-9) throw new Error(`Item ${it.numero} (${it.descricao}): quantidade acima do saldo da ata. Saldo disponível: ${sd} ${it.unidade}.`);
+    }
+    linhas.forEach(x=>demoDB.fornecimentos.push({id,contratoId:d.contratoId,itemId:x.itemId,data:d.data,pedido:d.pedido,quantidade:Number(x.quantidade),obs:d.obs,registradoEm:new Date().toISOString().slice(0,16)}));
+    return {ok:true,id};
+  }
+  if(p.action==='excluirFornecimento'){ demoDB.fornecimentos=demoDB.fornecimentos.filter(f=>f.id!==p.id); return {ok:true}; }
+}
 async function demo(p){
   const clone=o=>JSON.parse(JSON.stringify(o));
   if(p.action==='listar') return {ok:true,...clone(demoDB)};
+  if(/Ite(m|ns)$|Fornecimento$/.test(p.action)) return demoItens(p);
   if(p.action==='salvar'){
     const d=JSON.parse(p.payload); d.id=d.id||'CT-'+Math.random().toString(16).slice(2,10).toUpperCase();
     demoDB.contratos=demoDB.contratos.filter(c=>c.id!==d.id);
@@ -353,6 +462,7 @@ async function carregar(){
   try{
     const r=await chamar({action:'listar'});
     contratos=r.contratos||[]; historico=r.historico||[];
+    itensAta=r.itens||[]; fornecimentos=r.fornecimentos||[];
     document.getElementById('ultimaAtualizacao').textContent='Atualizado em '+new Date().toLocaleString('pt-BR');
     montarFiltroAno(); renderizar();
   }catch(e){
@@ -436,7 +546,8 @@ function renderizar(){
     return `<tr>
       <td><div class="orgao">${esc(c.orgao)}</div>
         <div class="meta">Edital ${esc(c.edital||'–')} · Contrato/ARP ${esc(c.contrato||'–')}${c.ano?' · '+c.ano:''}</div>
-        ${c.plataforma||c.propostasAte?`<div class="meta">${c.plataforma?'Plataforma '+esc(c.plataforma):''}${c.plataforma&&c.propostasAte?' · ':''}${c.propostasAte?'propostas até '+esc(dataHoraBR(c.propostasAte)):''}</div>`:''}</td>
+        ${c.plataforma||c.propostasAte?`<div class="meta">${c.plataforma?'Plataforma '+esc(c.plataforma):''}${c.plataforma&&c.propostasAte?' · ':''}${c.propostasAte?'propostas até '+esc(dataHoraBR(c.propostasAte)):''}</div>`:''}
+        ${resumoAta(c.id)}</td>
       <td>${ped.length?ped.map(p=>`<span class="pill p-cinza me-1 mb-1">${esc(p)}</span>`).join(''):'<span class="meta">–</span>'}</td>
       <td class="num">${brl(vt)}</td>
       <td class="num">${brl(c.valorFaturado)}</td>
@@ -449,7 +560,8 @@ function renderizar(){
         ${c.link?`<button class="btn btn-sm btn-light" title="${/^https?:/i.test(c.link)?'Abrir arquivos':'Copiar caminho da pasta'}" onclick="abrirLink('${c.id}')"><i class="bi ${/^https?:/i.test(c.link)?'bi-box-arrow-up-right':'bi-folder2-open'}"></i></button>`:''}
         ${hist
           ?`<button class="btn btn-sm btn-light" title="Reativar contrato" onclick="reativar('${c.id}')"><i class="bi bi-arrow-counterclockwise"></i></button>`
-          :`<button class="btn btn-sm btn-light" title="Lançar faturamento" onclick="abrirFaturar('${c.id}')"><i class="bi bi-receipt"></i></button>
+          :`<button class="btn btn-sm btn-light" title="Itens da ata e fornecimentos" onclick="abrirItens('${c.id}')"><i class="bi bi-list-check"></i></button>
+            <button class="btn btn-sm btn-light" title="Lançar faturamento" onclick="abrirFaturar('${c.id}')"><i class="bi bi-receipt"></i></button>
             <button class="btn btn-sm btn-light" title="Editar" onclick="abrirForm('${c.id}')"><i class="bi bi-pencil"></i></button>`}
         <button class="btn btn-sm btn-light text-danger" title="Excluir" onclick="excluir('${c.id}')"><i class="bi bi-trash"></i></button>
       </td></tr>`;
@@ -574,6 +686,184 @@ $('formFaturar').addEventListener('submit',async e=>{
   try{ await chamar({action:'faturar',id:idFaturar,valor:v}); mdFaturar.hide(); avisar(`Faturamento de ${brl(v)} lançado.`); await carregar(); }
   catch(err){ avisar(err.message,true); }
 });
+
+/* --- Itens da ata e fornecimentos ---
+   Controle de quantidades por item, separado do faturamento em R$. O Apps Script
+   também recusa fornecimento acima do saldo; aqui a checagem só antecipa o aviso. */
+const mdItens=new bootstrap.Modal('#mdItens');
+let itContratoId=null;
+const qtdBR = n => (Number(n)||0).toLocaleString('pt-BR',{maximumFractionDigits:3});
+// Quantidade no padrão brasileiro: "1.000" = mil, "12,5" = doze e meio
+function parseQtd(s){
+  s=String(s||'').trim().replace(/\s/g,''); if(!s) return 0;
+  if(s.includes(',')) s=s.replace(/\./g,'').replace(',','.');
+  else if(/^\d{1,3}(\.\d{3})+$/.test(s)) s=s.replace(/\./g,'');
+  return Number(s)||0;
+}
+const itensDe = cid => itensAta.filter(i=>i.contratoId===cid)
+  .sort((a,b)=>String(a.numero).localeCompare(String(b.numero),'pt-BR',{numeric:true}));
+const fornecidoItem = iid => fornecimentos.filter(f=>f.itemId===iid).reduce((s,f)=>s+(Number(f.quantidade)||0),0);
+const saldoItem = it => (Number(it.quantidade)||0)-fornecidoItem(it.id);
+
+// Linha extra na tabela de contratos: quantos itens a ata tem e quantos já esgotaram
+function resumoAta(cid){
+  const its=itensDe(cid); if(!its.length) return '';
+  const esgotados=its.filter(it=>saldoItem(it)<=0).length;
+  const baixos=its.filter(it=>{ const s=saldoItem(it); return s>0&&s<=Number(it.quantidade)*0.2; }).length;
+  return `<div class="meta"><i class="bi bi-list-check"></i> Ata: ${its.length} ${its.length===1?'item':'itens'}`
+    +(esgotados?` · <span style="color:var(--venc)">${esgotados} esgotado${esgotados>1?'s':''}</span>`:'')
+    +(baixos?` · <span style="color:var(--urg)">${baixos} com saldo baixo</span>`:'')+'</div>';
+}
+
+function abrirItens(cid){
+  const c=acharContrato(cid); if(!c) return;
+  itContratoId=cid;
+  $('itCabecalho').textContent=`${c.orgao} · Edital ${c.edital||'–'} · Contrato/ARP ${c.contrato||'–'}`;
+  limparFormItem(); fecharFormFornecimento(); $('itColar').value=''; previaColar();
+  renderItens(); mdItens.show();
+}
+
+function renderItens(){
+  const its=itensDe(itContratoId);
+  $('itBody').innerHTML=its.length?its.map(it=>{
+    const q=Number(it.quantidade)||0, f=fornecidoItem(it.id), s=q-f, pct=q>0?Math.min(f/q*100,100):0;
+    const cor=s<=0?'var(--venc)':s<=q*0.2?'var(--urg)':'var(--navy-2)';
+    return `<tr>
+      <td>${esc(it.numero||'–')}</td><td class="meta">${esc(it.codigo||'–')}</td><td>${esc(it.descricao)}</td><td>${esc(it.unidade||'')}</td>
+      <td class="num">${qtdBR(q)}</td><td class="num">${qtdBR(f)}</td>
+      <td class="num"><strong style="color:${s<=0?'var(--venc)':'inherit'}">${qtdBR(s)}</strong>
+        <div class="saldo-bar" title="${pct.toFixed(0)}% fornecido"><div style="width:${pct}%;background:${cor}"></div></div></td>
+      <td class="acoes text-end text-nowrap">
+        <button class="btn btn-sm btn-light" title="Editar item" onclick="editarItem('${esc(it.id)}')"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-light text-danger" title="Excluir item" onclick="excluirItem('${esc(it.id)}')"><i class="bi bi-trash"></i></button>
+      </td></tr>`;
+  }).join(''):'<tr><td colspan="8" class="vazio">Nenhum item cadastrado. Preencha os campos acima ou cole a lista da ata.</td></tr>';
+  $('fnAbrir').classList.toggle('d-none',!its.length);
+  renderFornecimentos();
+}
+
+function renderFornecimentos(){
+  const lanc={};
+  fornecimentos.filter(f=>f.contratoId===itContratoId).forEach(f=>(lanc[f.id]=lanc[f.id]||[]).push(f));
+  const grupos=Object.values(lanc).sort((a,b)=>String(b[0].data).localeCompare(String(a[0].data)));
+  const nomeItem=id=>{ const it=itensAta.find(i=>i.id===id); return it?`Item ${it.numero||'–'} · ${it.descricao}`:'(item excluído)'; };
+  const unid=id=>(itensAta.find(i=>i.id===id)||{}).unidade||'';
+  $('fnLista').innerHTML=grupos.length?`<div class="tabela-wrap"><table class="table tb mb-0" style="min-width:640px">
+    <thead><tr><th>Data</th><th>Pedido</th><th>Itens fornecidos</th><th>Observação</th><th></th></tr></thead><tbody>${
+    grupos.map(g=>`<tr><td class="text-nowrap">${dataBR(g[0].data)}</td><td>${esc(g[0].pedido||'–')}</td>
+      <td>${g.map(f=>`<div>${esc(nomeItem(f.itemId))}: <strong>${qtdBR(f.quantidade)} ${esc(unid(f.itemId))}</strong></div>`).join('')}</td>
+      <td class="meta">${esc(g[0].obs||'')}</td>
+      <td class="acoes text-end"><button class="btn btn-sm btn-light text-danger" title="Excluir lançamento" onclick="excluirFornecimento('${esc(g[0].id)}')"><i class="bi bi-trash"></i></button></td></tr>`).join('')
+    }</tbody></table></div>`:'<div class="meta">Nenhum fornecimento registrado.</div>';
+}
+
+/* Cadastro de item */
+function limparFormItem(){
+  ['itId','itNumero','itCodigo','itDescricao','itUnidade','itQtd'].forEach(id=>$(id).value='');
+  $('itSalvar').innerHTML='<i class="bi bi-plus-lg me-1"></i>Adicionar';
+  $('itCancelar').classList.add('d-none');
+}
+function editarItem(id){
+  const it=itensAta.find(i=>i.id===id); if(!it) return;
+  $('itId').value=it.id; $('itNumero').value=it.numero||''; $('itCodigo').value=it.codigo||'';
+  $('itDescricao').value=it.descricao||''; $('itUnidade').value=it.unidade||''; $('itQtd').value=qtdBR(it.quantidade);
+  $('itSalvar').innerHTML='<i class="bi bi-check-lg me-1"></i>Salvar';
+  $('itCancelar').classList.remove('d-none'); $('itDescricao').focus();
+}
+async function enviarItens(lista){
+  // Em lotes, para o endereço da chamada não ficar grande demais
+  for(let i=0;i<lista.length;i+=15)
+    await chamar({action:'salvarItens',payload:JSON.stringify({contratoId:itContratoId,itens:lista.slice(i,i+15)})});
+}
+$('formItem').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const it={id:$('itId').value||undefined,numero:$('itNumero').value.trim(),codigo:$('itCodigo').value.trim(),
+    descricao:$('itDescricao').value.trim(),unidade:$('itUnidade').value.trim().toUpperCase(),quantidade:parseQtd($('itQtd').value)};
+  if(!it.descricao){ avisar('Informe a descrição do item.',true); $('itDescricao').focus(); return; }
+  if(!(it.quantidade>0)){ avisar('Informe a quantidade da ata.',true); $('itQtd').focus(); return; }
+  const btn=$('itSalvar'); btn.disabled=true;
+  try{ await enviarItens([it]); avisar(it.id?'Item atualizado.':'Item adicionado.'); limparFormItem(); await carregar(); renderItens(); $('itNumero').focus(); }
+  catch(err){ avisar(err.message,true); }
+  finally{ btn.disabled=false; }
+});
+async function excluirItem(id){
+  const it=itensAta.find(i=>i.id===id);
+  if(!confirm(`Excluir o item ${it.numero||''} "${it.descricao}"?`)) return;
+  try{ await chamar({action:'excluirItem',id}); avisar('Item excluído.'); await carregar(); renderItens(); }
+  catch(err){ avisar(err.message,true); }
+}
+
+/* Colar lista de itens (copiada do Excel: colunas separadas por tabulação) */
+function lerColagem(){
+  const linhas=$('itColar').value.split(/\r?\n/).map(l=>l.split(/\t|;/).map(c=>c.trim())).filter(l=>l.some(Boolean));
+  const itens=[];
+  for(const c of linhas){
+    let it;
+    if(c.length>=5) it={numero:c[0],codigo:c[1],descricao:c[2],unidade:c[3],quantidade:parseQtd(c[4])};
+    else if(c.length===4) it={numero:c[0],codigo:'',descricao:c[1],unidade:c[2],quantidade:parseQtd(c[3])};
+    else if(c.length===3) it={numero:'',codigo:'',descricao:c[0],unidade:c[1],quantidade:parseQtd(c[2])};
+    else continue;
+    if(it.descricao&&it.quantidade>0) itens.push({...it,unidade:String(it.unidade).toUpperCase()});   // pula cabeçalho e linhas sem quantidade
+  }
+  return {itens,ignoradas:linhas.length-itens.length};
+}
+function previaColar(){
+  const {itens,ignoradas}=lerColagem();
+  $('itColarPrevia').textContent=!$('itColar').value.trim()?'':`${itens.length} ${itens.length===1?'item reconhecido':'itens reconhecidos'}`+(ignoradas?` · ${ignoradas} linha(s) ignorada(s) (cabeçalho ou sem quantidade)`:'');
+}
+$('itColar').addEventListener('input',previaColar);
+async function importarItens(){
+  const {itens}=lerColagem();
+  if(!itens.length){ avisar('Nenhum item reconhecido. Confira as colunas.',true); return; }
+  const btn=$('itImportar'); btn.disabled=true; btn.textContent='Importando…';
+  try{ await enviarItens(itens); avisar(`${itens.length} itens importados.`); $('itColar').value=''; previaColar(); $('itColarBox').open=false; await carregar(); renderItens(); }
+  catch(err){ avisar(err.message,true); await carregar(); renderItens(); }
+  finally{ btn.disabled=false; btn.textContent='Importar'; }
+}
+
+/* Registro de fornecimento */
+function abrirFormFornecimento(){
+  const its=itensDe(itContratoId);
+  $('fnData').value=new Date().toLocaleDateString('sv-SE'); $('fnPedido').value=''; $('fnObs').value='';
+  $('fnErro').classList.add('d-none');
+  $('fnBody').innerHTML=its.map(it=>{ const s=saldoItem(it); return `<tr>
+    <td>Item ${esc(it.numero||'–')} · ${esc(it.descricao)}${it.codigo?` <span class="meta">(${esc(it.codigo)})</span>`:''}</td>
+    <td class="num ${s<=0?'text-danger':''}">${qtdBR(s)} ${esc(it.unidade||'')}</td>
+    <td><input class="form-control form-control-sm text-end fn-qtd" data-item="${esc(it.id)}" inputmode="decimal" ${s<=0?'placeholder="esgotado" disabled':'placeholder="0"'}></td></tr>`; }).join('');
+  $('fnBody').querySelectorAll('.fn-qtd').forEach(inp=>inp.addEventListener('input',validarFornecimento));
+  $('formFornecimento').classList.remove('d-none'); $('fnAbrir').classList.add('d-none');
+  $('fnPedido').focus();
+}
+function fecharFormFornecimento(){ $('formFornecimento').classList.add('d-none'); $('fnAbrir').classList.toggle('d-none',!itensDe(itContratoId).length); }
+// Marca em vermelho as quantidades acima do saldo e devolve a mensagem de erro (ou '')
+function validarFornecimento(){
+  const erros=[];
+  $('fnBody').querySelectorAll('.fn-qtd').forEach(inp=>{
+    const it=itensAta.find(i=>i.id===inp.dataset.item), q=parseQtd(inp.value), s=saldoItem(it);
+    const ruim=q>s+1e-9; inp.classList.toggle('is-invalid',ruim);
+    if(ruim) erros.push(`Item ${it.numero||'–'}: ${qtdBR(q)} é maior que o saldo da ata (${qtdBR(s)} ${it.unidade||''}).`);
+  });
+  $('fnErro').innerHTML=erros.map(esc).join('<br>'); $('fnErro').classList.toggle('d-none',!erros.length);
+  return erros.join(' ');
+}
+$('formFornecimento').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const itens=[...$('fnBody').querySelectorAll('.fn-qtd')].map(inp=>({itemId:inp.dataset.item,quantidade:parseQtd(inp.value)})).filter(x=>x.quantidade>0);
+  if(validarFornecimento()) return;
+  if(!$('fnData').value){ avisar('Informe a data do fornecimento.',true); return; }
+  if(!itens.length){ avisar('Informe a quantidade de pelo menos um item.',true); return; }
+  const btn=$('fnSalvar'); btn.disabled=true; btn.textContent='Salvando…';
+  try{
+    await chamar({action:'salvarFornecimento',payload:JSON.stringify({contratoId:itContratoId,data:$('fnData').value,pedido:$('fnPedido').value.trim(),obs:$('fnObs').value.trim(),itens})});
+    avisar('Fornecimento registrado.'); fecharFormFornecimento(); await carregar(); renderItens();
+  }catch(err){ avisar(err.message,true); }
+  finally{ btn.disabled=false; btn.textContent='Salvar fornecimento'; }
+});
+async function excluirFornecimento(id){
+  if(!confirm('Excluir este lançamento de fornecimento? As quantidades voltam para o saldo da ata.')) return;
+  try{ await chamar({action:'excluirFornecimento',id}); avisar('Lançamento excluído.'); await carregar(); renderItens(); }
+  catch(err){ avisar(err.message,true); }
+}
 
 /* --- Excluir / reativar --- */
 async function excluir(id){
